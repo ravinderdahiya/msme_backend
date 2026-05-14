@@ -21,7 +21,12 @@ app.use(express.urlencoded({ extended: false }))
 app.use("/user", userRoutes)
 app.use("/otp", otpRoutes)
 
+app.get("/", (req, res) => {
+  res.send("Backend is running")
+})
+
 // Server
-app.listen(8080, () => {
-  console.log("Server running on 8080")
+const PORT = process.env.PORT || 8080
+app.listen(PORT, () => {
+  console.log(`Server running on ${PORT}`)
 })

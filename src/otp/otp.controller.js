@@ -53,8 +53,8 @@ export const sendOtp = async (req, res) => {
       return res.status(400).json({ message: "Invalid phone format" })
     }
 
-    // Generate 4-digit OTP
-    const otp = Math.floor(1000 + Math.random() * 9000)
+    // Generate 4-digit OTP and persist as string (Prisma schema: Otp.otp is String)
+    const otp = String(Math.floor(1000 + Math.random() * 9000))
 
     // Delete existing OTP for this phone
     await prisma.otp.deleteMany({
@@ -138,16 +138,16 @@ export const verifyOtp = async (req, res) => {
       return res.status(400).json({ message: "Invalid phone format" })
     }
 
-    const otpNumber = Number(otp)
-    if (isNaN(otpNumber)) {
-      return res.status(400).json({ message: "OTP must be a number" })
+    const otpValue = String(otp).trim()
+    if (!/^\d{4}$/.test(otpValue)) {
+      return res.status(400).json({ message: "OTP must be a 4-digit number" })
     }
 
     // Find OTP record
     const record = await prisma.otp.findFirst({
       where: { 
         phone,
-        otp: otpNumber
+        otp: otpValue
       }
     })
 
