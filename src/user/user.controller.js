@@ -164,6 +164,104 @@ export const login = async (req, res) => {
   }
 }
 
+const verifyGoogleIdToken = async (idToken) => {
+  try {
+    const response = await fetch(
+      `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`
+    )
+
+    if (!response.ok) {
+      return null
+    }
+
+    const data = await response.json()
+
+    if (data.aud !== process.env.GOOGLE_CLIENT_ID) {
+      return null
+    }
+
+    return data
+  } catch (error) {
+    console.error("Google token verification failed:", error)
+    return null
+  }
+}
+
+export const googleLogin = async (req, res) => {
+  try {
+    const { idToken } = req.body
+
+    if (!idToken) {
+      return res.status(400).json({ message: "Google ID token required" })
+    }
+
+    const tokenData = await verifyGoogleIdToken(idToken)
+
+    if (!tokenData || tokenData.email_verified !== "true") {
+      return res.status(401).json({ message: "Invalid or unverified Google token" })
+    }
+
+    const email = tokenData.email?.trim()?.toLowerCase()
+    const fullname = tokenData.name?.trim() || email
+
+    if (!email) {
+      return res.status(400).json({ message: "Google token did not return email" })
+    }
+
+    let user = await prisma.user.findUnique({
+      where: { email }
+    })
+
+    if (!user) {
+      const generatedPassword = randomUUID()
+      const hashedPassword = await bcrypt.hash(generatedPassword, 10)
+
+      user = await prisma.user.create({
+        data: {
+          fullname,
+          email,
+          password: hashedPassword,
+          mobile: "0000000000",
+          role: "user"
+        }
+      })
+    }
+
+    const session = await prisma.sessionLog.create({
+      data: {
+        userId: user.id,
+        ipAddress: getClientIp(req),
+        userAgent: req.headers["user-agent"]?.slice(0, 255) || null
+      }
+    })
+
+    const token = jwt.sign(
+      {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        sessionId: session.id,
+        jti: randomUUID()
+      },
+      process.env.AUTH_SECRET,
+      { expiresIn: "1d" }
+    )
+
+    res.json({
+      message: "Google login successful",
+      token,
+      user: {
+        id: user.id,
+        fullname: user.fullname,
+        email: user.email
+      }
+    })
+  } catch (error) {
+    console.error("Google Login Error:", error)
+    res.status(500).json({ message: "Internal server error" })
+  }
+}
+
 // ================= LOGOUT =================
 export const logout = async (req, res) => {
   try {
