@@ -1,4 +1,5 @@
 import prisma from "../config/db.js"
+import { Prisma } from "@prisma/client"
 import axios from "axios"
 import jwt from "jsonwebtoken"
 import { randomUUID } from "crypto"
@@ -52,6 +53,41 @@ const getSmsConfig = () => {
       ? String(process.env.SMS_GROUP_IDS).split(",").map((item) => item.trim()).filter(Boolean)
       : undefined,
   }
+}
+
+const buildInternalErrorPayload = (error) => {
+  const errorId = randomUUID()
+  const payload = {
+    message: "Server error",
+    errorId,
+  }
+
+  if (process.env.NODE_ENV !== "production") {
+    payload.details = error?.message || "Unknown error"
+  }
+
+  return payload
+}
+
+const logControllerError = (label, error, errorId) => {
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    console.error(`${label} [${errorId}]`, {
+      code: error.code,
+      meta: error.meta,
+      message: error.message,
+    })
+    return
+  }
+
+  if (error instanceof Prisma.PrismaClientValidationError) {
+    console.error(`${label} [${errorId}]`, {
+      type: "PrismaClientValidationError",
+      message: error.message,
+    })
+    return
+  }
+
+  console.error(`${label} [${errorId}]`, error)
 }
 
 // ===================== SEND OTP =====================
@@ -152,8 +188,9 @@ export const sendOtp = async (req, res) => {
     }
 
   } catch (error) {
-    console.error("Send OTP Error:", error.message)
-    res.status(500).json({ message: "Server error" })
+    const payload = buildInternalErrorPayload(error)
+    logControllerError("Send OTP Error", error, payload.errorId)
+    res.status(500).json(payload)
   }
 }
 
@@ -257,8 +294,9 @@ const record = await prisma.otp.findFirst({
     })
 
   } catch (error) {
-    console.error("Verify OTP Error:", error.message)
-    res.status(500).json({ message: "Server error" })
+    const payload = buildInternalErrorPayload(error)
+    logControllerError("Verify OTP Error", error, payload.errorId)
+    res.status(500).json(payload)
   }
 
 }

@@ -12,13 +12,16 @@ const buildProxyHeaders = (headers) => {
 }
 
 export const proxyMapserverRequest = async (req, res) => {
+  let serviceKey = ""
+  let targetUrl = ""
+
   try {
     const method = String(req.method || "GET").toUpperCase()
     if (!["GET", "POST"].includes(method)) {
       return res.status(405).json({ message: "Method not allowed" })
     }
 
-    const serviceKey = String(req.params.serviceKey || "").trim()
+    serviceKey = String(req.params.serviceKey || "").trim()
     if (!serviceKey) {
       return res.status(400).json({ message: "Invalid service key" })
     }
@@ -40,7 +43,7 @@ export const proxyMapserverRequest = async (req, res) => {
       return res.status(404).json({ message: `Service key not found: ${serviceKey}` })
     }
     const suffixPath = req.path && req.path !== "/" ? req.path : ""
-    const targetUrl = `${baseUrl}${suffixPath}`
+    targetUrl = `${baseUrl}${suffixPath}`
 
     const upstream = await axios({
       method,
@@ -60,7 +63,53 @@ export const proxyMapserverRequest = async (req, res) => {
 
     res.status(upstream.status).send(Buffer.from(upstream.data))
   } catch (error) {
-    console.error("proxyMapserverRequest error:", error?.message || error)
-    res.status(502).json({ message: "Map proxy failed" })
+    const status = error?.response?.status
+    const errorCode = error?.code
+    const message = error?.message || "Map proxy failed"
+    const upstreamContentType = error?.response?.headers?.["content-type"] || ""
+    const upstreamBody = error?.response?.data
+    let upstreamPreview = null
+
+    if (upstreamBody) {
+      try {
+        if (Buffer.isBuffer(upstreamBody)) {
+          upstreamPreview = upstreamBody.toString("utf8").slice(0, 500)
+        } else if (typeof upstreamBody === "string") {
+          upstreamPreview = upstreamBody.slice(0, 500)
+        } else {
+          upstreamPreview = JSON.stringify(upstreamBody).slice(0, 500)
+        }
+      } catch {
+        upstreamPreview = null
+      }
+    }
+
+    console.error("proxyMapserverRequest error:", {
+      serviceKey,
+      targetUrl,
+      method: req.method,
+      status,
+      errorCode,
+      message,
+      upstreamContentType,
+      upstreamPreview,
+    })
+
+    const responsePayload = {
+      message: "Map proxy failed",
+    }
+
+    if (process.env.NODE_ENV !== "production") {
+      responsePayload.details = {
+        serviceKey,
+        targetUrl,
+        status: status || null,
+        errorCode: errorCode || null,
+        message,
+      }
+    }
+
+    const failureStatus = status || (errorCode === "ECONNABORTED" ? 504 : 502)
+    res.status(failureStatus).json(responsePayload)
   }
 }

@@ -137,26 +137,50 @@ const parseCorsOrigins = () => {
     .filter(Boolean)
 }
 
+const isLoopbackOrigin = (origin) => {
+  try {
+    const { hostname } = new URL(origin)
+    return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1"
+  } catch {
+    return false
+  }
+}
+
 const createCorsOptions = () => {
   const origins = parseCorsOrigins()
-  if (!origins.length) {
-    console.warn("CORS_ORIGINS is not set. Allowing all origins.")
-    return { origin: true, credentials: true }
-  }
-
+  const allowlistedOrigins = new Set(origins)
   return {
     credentials: true,
+    optionsSuccessStatus: 204,
     origin: (origin, callback) => {
-      if (!origin || origins.includes(origin)) {
+      // Allow server-to-server requests and tools with no Origin header.
+      if (!origin) {
         return callback(null, true)
       }
-      return callback(new Error("Not allowed by CORS"))
+
+      if (!allowlistedOrigins.size) {
+        console.warn("CORS_ORIGINS is not set. Allowing all origins.")
+        return callback(null, true)
+      }
+
+      if (allowlistedOrigins.has(origin)) {
+        return callback(null, true)
+      }
+
+      if (process.env.NODE_ENV !== "production" && isLoopbackOrigin(origin)) {
+        return callback(null, true)
+      }
+
+      // Do not throw an error here; simply deny CORS headers for this origin.
+      return callback(null, false)
     },
   }
 }
 
 // CORS
-app.use(cors(createCorsOptions()))
+const corsOptions = createCorsOptions()
+app.use(cors(corsOptions))
+app.options(/.*/, cors(corsOptions))
 
 // Middleware
 app.use(express.json({
@@ -186,9 +210,13 @@ const startServer = async () => {
   await ensureAdminUser()
   await ensureDefaultApiUrls()
   await ensureDefaultDataServices()
-  app.listen(PORT, () => {
+    app.listen(PORT, () => {
     console.log(`Server running on ${PORT}`)
   })
+
+  /*app.listen(PORT, '172.16.1.50', () => {
+    console.log(`Server running on ${PORT}`);
+});*/
 }
 
 startServer()
