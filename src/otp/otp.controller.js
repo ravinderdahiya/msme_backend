@@ -197,7 +197,9 @@ export const sendOtp = async (req, res) => {
 // ===================== VERIFY OTP =====================
 export const verifyOtp = async (req, res) => {
   try {
-    let { phone, mobile, otp } = req.body
+    console.log(req.body)
+   let { phone, mobile, otp, latitude, longitude } = req.body
+   console.log(latitude, longitude)
     
     phone = phone || mobile
 
@@ -259,6 +261,10 @@ const record = await prisma.otp.findFirst({
       data: {
         userId: user.id,
         ipAddress: getClientIp(req),
+
+        latitude: latitude ? Number(latitude) : null,
+        longitude: longitude ? Number(longitude) : null,
+
         userAgent: req.headers["user-agent"]?.slice(0, 255) || null
       }
     })

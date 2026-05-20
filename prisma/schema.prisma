@@ -8,28 +8,39 @@ datasource db {
 }
 
 model User {
-  id        Int          @id @default(autoincrement())
+  id        String       @id @default(uuid())
   fullname  String
   email     String       @unique
   password  String
-  mobile    String
+  mobile    String       @unique
   role      String       @default("user")
+
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
+
   sessions  SessionLog[]
 }
 
 model SessionLog {
-  id        Int       @id @default(autoincrement())
-  userId    Int
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  ipAddress String?   @db.VarChar(45)
-  userAgent String?   @db.VarChar(255)
-  loginAt   DateTime  @default(now())
-  logoutAt  DateTime?
-  isActive  Boolean   @default(true)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id         String    @id @default(uuid())
+
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  ipAddress  String?   @db.VarChar(45)
+
+  latitude   Float?
+  longitude  Float?
+
+  userAgent  String?   @db.VarChar(255)
+
+  loginAt    DateTime  @default(now())
+  logoutAt   DateTime?
+
+  isActive   Boolean   @default(true)
+
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
   @@index([userId])
   @@index([loginAt])
@@ -37,11 +48,14 @@ model SessionLog {
 }
 
 model Otp {
-  id              Int      @id @default(autoincrement())
+  id              String   @id @default(uuid())
+
   phone           String
   otp             String
   expiresAt       DateTime
+
   failedAttempts  Int      @default(0)
+
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -49,13 +63,16 @@ model Otp {
 }
 
 model ApiUrl {
-  id          Int      @id @default(autoincrement())
+  id          String   @id @default(uuid())
+
   key         String   @unique
   name        String
   url         String
   description String?
+
   category    String   @default("general")
   isActive    Boolean  @default(true)
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -64,18 +81,23 @@ model ApiUrl {
 }
 
 model DataService {
-  id          Int      @id @default(autoincrement())
-  key         String   @unique
-  name        String
-  endpoint    String
-  serviceType String   @default("REST API")
-  description String?
-  isActive    Boolean  @default(true)
-  lastChecked DateTime @default(now())
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String   @id @default(uuid())
+
+  key          String   @unique
+  name         String
+  endpoint     String
+
+  serviceType  String   @default("REST API")
+
+  description  String?
+
+  isActive     Boolean  @default(true)
+
+  lastChecked  DateTime @default(now())
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   @@index([serviceType])
   @@index([isActive])
 }
-
